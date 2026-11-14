@@ -28,13 +28,15 @@ Ask your AI assistant to change the in-game UI in plain language. It can:
 
 ## Setup
 
-Ask your AI agent to clone this repo and they'll figure it out. :) The technical details are in [TECH.md](TECH.md#tools).
+Ask your AI agent to clone this repo and they'll figure it out. :) 
+
+The technical details are in [TECH.md](TECH.md#tools).
 
 ### Connect a client
 
 **Claude Code**: the included `.mcp.json` registers the server when you open Claude Code in this directory.
 
-**Other clients**: point them at `<checkout>/.venv/bin/python -m deadlock_mcp` (stdio), for example:
+**Other clients**:
 
 ```json
 { "mcpServers": { "deadlock": { "command": "/path/to/deadlock-mcp/.venv/bin/python", "args": ["-m", "deadlock_mcp"] } } }
@@ -42,9 +44,7 @@ Ask your AI agent to clone this repo and they'll figure it out. :) The technical
 
 Then:
 
-1. `bridge_install` decompiles the three UI host layouts, injects the bridge, compiles them, and mounts the addon.
-2. `launch_game(map="new_player_basics")`
-3. `status` should show the `hud`, `dashboard` and `overlay` bridges as ready.
+Ask your agent to install the bridge and launch the game.
 
 ## Making a mod
 
