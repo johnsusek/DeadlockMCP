@@ -28,22 +28,7 @@ Ask your AI assistant to change the in-game UI in plain language. It can:
 
 ## Setup
 
-```bash
-git clone <this repo> deadlock-mcp && cd deadlock-mcp
-python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
-
-# Source 2 Viewer CLI → tools/s2v
-mkdir -p tools/s2v && curl -L -o /tmp/s2v.zip \
-  https://github.com/ValveResourceFormat/ValveResourceFormat/releases/download/20.1/cli-linux-x64.zip \
-  && unzip /tmp/s2v.zip -d tools/s2v
-
-# CSDK 13 (Reduced) → extract to tools/Reduced_CSDK_13
-
-# one-time wine prefix for the compiler (~/Games/umu/umu-default)
-GAMEID=umu-default umu-run cmd /c exit
-```
-
-Use an editable install (`-e`). The server finds `tools/` and writes `mods/` relative to the checkout.
+Ask your AI agent to clone this repo and they'll figure it out. :) The technical details are in [TECH.md](TECH.md#tools).
 
 ### Connect a client
 
@@ -73,10 +58,6 @@ The exported VPK is a normal mod: it doesn't include the bridge and doesn't need
 
 The game sessions your agent launches are for building mods, so play your matches from a normal Steam launch. Also note that the dev addon stays mounted after you close the game, so the bridge loads on every launch until you ask your agent to unmount it (`addons_mount(enable=false)`). Game updates reset `gameinfo.gi`, which unmounts it too.
 
-## More detail
-
-See [TECH.md](TECH.md) for the full tool list, environment variables for custom install paths, how the bridge works, known limits, and development notes.
-
 ## License
 
-MIT. Deadlock and its assets belong to Valve. This repo contains no game files: decompiled layouts are produced on your machine and are git-ignored.
+MIT. Deadlock and its assets belong to Valve. 
