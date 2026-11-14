@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+
+# local toolchain (Source 2 Viewer CLI, CSDK 13): downloaded per README
+tools/
+
+# export_mod output and personal mod workspaces (may contain decompiled game files)
+mods/

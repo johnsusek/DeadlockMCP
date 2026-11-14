@@ -1,0 +1,125 @@
+// Deadlock MCP — request runner (appended to core.js + the generated __mcpUser function).
+// Runs once, in the context of a hidden panel created by the bridge.
+(function () {
+  var REQ = __MCP_REQUEST__;
+  var host = $.GetContextPanel();
+  if (REQ.keep) { host.SetAttributeString("mcp_keep", "1"); }
+
+  var ops = {
+    ping: function () {
+      return { root: MCP.describe(MCP.topRoot()), bridge: MCP.describe(MCP.bridgePanel()) };
+    },
+
+    eval: function (a) {
+      var target = a.target ? MCP.resolve(a.target) : MCP.bridgePanel();
+      var v = __mcpUser(target, MCP.topRoot(), MCP.resolve, MCP.query, MCP.children, MCP.describe);
+      return MCP.serialize(v);
+    },
+
+    tree: function (a) {
+      var start = MCP.resolve(a.target), max = a.max || 400, depth = a.depth == null ? 3 : a.depth, n = 0;
+      function rec(p, d) {
+        var node = MCP.describe(p);
+        n++;
+        if (d < depth && n < max) {
+          var c = MCP.children(p), kids = [];
+          for (var i = 0; i < c.length && n < max; i++) {
+            if ((c[i].id || "").lastIndexOf("McpReq", 0) === 0) { continue; }
+            kids.push(rec(c[i], d + 1));
+          }
+          if (kids.length) { node.kids = kids; }
+        }
+        return node;
+      }
+      return { tree: rec(start, 0), truncated: n >= max };
+    },
+
+    find: function (a) {
+      var res = MCP.query(a.sel, a.target ? MCP.resolve(a.target) : MCP.topRoot());
+      return { count: res.length, panels: res.slice(0, a.max || 100).map(MCP.describe) };
+    },
+
+    load_layout: function (a) {
+      var target = MCP.resolve(a.target), p = target;
+      if (a.mode === "append") {
+        if (a.id) {
+          var existing = target.FindChild(a.id);
+          if (existing) { existing.DeleteAsync(0); }
+        }
+        // A full-size, click-through holder carries the id; the layout loads into a child so the
+        // layout's root element keeps its own CSS (Panorama maps a layout's root onto the panel
+        // BLoadLayout is called on).
+        var holder = $.CreatePanel("Panel", target, a.id || ("McpPanel" + Date.now()));
+        holder.style.width = "100%";
+        holder.style.height = "100%";
+        holder.hittest = false;
+        p = $.CreatePanel("Panel", holder, (a.id || "McpPanel") + "_layout");
+      }
+      var ok = p.BLoadLayout(a.path, a.mode !== "append", false);
+      if (!ok) { throw new Error("BLoadLayout failed for " + a.path + " (see console_log for Panorama errors)"); }
+      MCP.reapplySheets();
+      return { panel: MCP.describe(a.mode === "append" ? p.GetParent() : p), layout_root: MCP.describe(p) };
+    },
+
+    // Re-load a game layout file into every live panel that is the root of it.
+    reload_layout: function (a) {
+      var want = a.layout.toLowerCase(), roots = [];
+      function norm(f) { return (f || "").replace(/\\/g, "/").toLowerCase(); }
+      MCP.walk(MCP.topRoot(), function (p) {
+        if ((p.id || "").lastIndexOf("McpReq", 0) === 0) { return false; }
+        var orig = p.GetAttributeString("mcp_orig_layout", "");
+        var lf = orig || norm(p.layoutfile);
+        if (lf.slice(-want.length) !== want) { return; }
+        var par = p.GetParent();
+        var plf = par ? (par.GetAttributeString("mcp_orig_layout", "") || norm(par.layoutfile)) : "";
+        if (plf === lf) { return; }
+        roots.push(p);
+        return false;
+      });
+      var done = [];
+      for (var i = 0; i < roots.length; i++) {
+        var p = roots[i];
+        if (!p.GetAttributeString("mcp_orig_layout", "")) { p.SetAttributeString("mcp_orig_layout", norm(p.layoutfile)); }
+        var ok = p.BLoadLayout(a.path, true, false);
+        if (a.revert) { p.SetAttributeString("mcp_orig_layout", ""); }
+        done.push({ ok: ok, panel: MCP.describe(p) });
+      }
+      MCP.reapplySheets();
+      return { reloaded: done.length, roots: done };
+    },
+
+    css_apply: function (a) {
+      var name = a.sheet || "default";
+      MCP.clearSheet(name);
+      var sheets = MCP.getSheets();
+      sheets[name] = { rules: a.rules, persist: a.persist !== false };
+      MCP.setSheets(sheets);
+      var matched = MCP.applyRules(name, a.rules), errs = MCP.lastApplyErrors();
+      var out = { sheet: name, rules: a.rules.length, matched: matched };
+      if (errs.length) { out.invalid = errs; }
+      return out;
+    },
+
+    css_clear: function (a) {
+      var name = a.sheet == null ? null : a.sheet, sheets = MCP.getSheets();
+      if (name === null) { sheets = {}; } else { delete sheets[name]; }
+      MCP.setSheets(sheets);
+      return { cleared: MCP.clearSheet(name), remaining: Object.keys(sheets) };
+    },
+
+    delete: function (a) {
+      MCP.resolve(a.target).DeleteAsync(0);
+      return { deleted: a.target };
+    },
+  };
+
+  var op = ops[REQ.op];
+  if (!op) { MCP.reply(REQ.id, { ok: false, error: "unknown op: " + REQ.op }); return; }
+  try {
+    MCP.reply(REQ.id, { ok: true, result: op(REQ.args || {}) });
+  } catch (e) {
+    var msg = String(e), stack = e && e.stack ? String(e.stack) : "";
+    if (stack.indexOf(msg) === 0) { stack = stack.substr(msg.length).replace(/^\s+/, ""); }
+    MCP.reply(REQ.id, { ok: false, error: msg, stack: stack || undefined });
+  }
+})();

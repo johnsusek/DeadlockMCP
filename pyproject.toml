@@ -1,0 +1,37 @@
+[project]
+name = "deadlock-mcp"
+version = "0.1.0"
+description = "MCP server for live-editing Deadlock's Panorama UI (XML / CSS / JS)"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+keywords = ["mcp", "deadlock", "panorama", "source2", "modding"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Topic :: Games/Entertainment",
+]
+dependencies = ["mcp>=2.3,<3", "esprima>=4.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-asyncio>=0.24"]
+
+[project.scripts]
+deadlock-mcp = "deadlock_mcp.server:main"
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["deadlock_mcp"]
+
+[tool.setuptools.package-data]
+deadlock_mcp = ["js/*.js", "templates/*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]

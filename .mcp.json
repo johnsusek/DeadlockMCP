@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "deadlock": {
+      "command": ".venv/bin/python",
+      "args": ["-m", "deadlock_mcp"]
+    }
+  }
+}

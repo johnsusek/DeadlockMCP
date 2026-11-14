@@ -1,0 +1,73 @@
+
+/* ===== mod: stat_boosts_row =====================================================
+   During play: only active stat boosts, one gap-free left→right row at bottom-center.
+   TAB (scoreboard) / detail view / shop: the game's original 3-column list above the meters. */
+
+#StatList
+{
+	horizontal-align: center;
+	margin-bottom: 215px;   /* clears the whole ability area (#hud_signature), incl. hero extras like McGinnis turret icons */
+	width: fit-children;
+	height: fit-children;
+}
+
+#StatList .column_stats
+{
+	flow-children: right;
+	width: fit-children;
+	height: fit-children;
+	vertical-align: bottom;
+}
+
+#StatList .miniModifier
+{
+	width: fit-children;
+	margin-right: 6px;
+	visibility: collapse;
+}
+
+#StatList .miniModifier.isPositive,
+#StatList .miniModifier.isNegative
+{
+	visibility: visible;
+}
+
+/* --- full view: restore the original layout and visibility rules --- */
+.gDetailView #StatList, .gScoreboardOpen #StatList, .gShopOpen #StatList
+{
+	horizontal-align: left;
+	margin-bottom: 280px;
+	width: 320px;
+	height: 600px;
+}
+
+.gShopOpen #StatList
+{
+	margin-bottom: 320px;
+}
+
+.gDetailView #StatList .column_stats, .gScoreboardOpen #StatList .column_stats, .gShopOpen #StatList .column_stats
+{
+	flow-children: up;
+	width: 33%;
+	height: 100%;
+	vertical-align: top;
+}
+
+.gDetailView #StatList .miniModifier, .gScoreboardOpen #StatList .miniModifier, .gShopOpen #StatList .miniModifier
+{
+	width: 100%;
+	margin-right: 2px;
+	visibility: visible;
+}
+
+.gDetailView #StatList .miniModifier.secondaryStat.isBaseValue, .gScoreboardOpen #StatList .miniModifier.secondaryStat.isBaseValue, .gShopOpen #StatList .miniModifier.secondaryStat.isBaseValue,
+.gDetailView #StatList .miniModifier.secondaryStat.isZero, .gScoreboardOpen #StatList .miniModifier.secondaryStat.isZero, .gShopOpen #StatList .miniModifier.secondaryStat.isZero
+{
+	visibility: collapse;
+}
+
+.gDetailView #StatList .shouldShow.miniModifier.secondaryStat, .gScoreboardOpen #StatList .shouldShow.miniModifier.secondaryStat, .gShopOpen #StatList .shouldShow.miniModifier.secondaryStat
+{
+	visibility: visible;
+}
