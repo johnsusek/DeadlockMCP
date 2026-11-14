@@ -1,6 +1,23 @@
 # deadlock-mcp: technical notes
 
-The full tool list, configuration, how the bridge works, known limits, and how to run the tests. For setup, see the [README](README.md).
+## Setup
+
+```bash
+git clone <this repo> deadlock-mcp && cd deadlock-mcp
+python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
+
+# Source 2 Viewer CLI → tools/s2v
+mkdir -p tools/s2v && curl -L -o /tmp/s2v.zip \
+  https://github.com/ValveResourceFormat/ValveResourceFormat/releases/download/20.1/cli-linux-x64.zip \
+  && unzip /tmp/s2v.zip -d tools/s2v
+
+# CSDK 13 (Reduced) → extract to tools/Reduced_CSDK_13
+
+# one-time wine prefix for the compiler (~/Games/umu/umu-default)
+GAMEID=umu-default umu-run cmd /c exit
+```
+
+Use an editable install (`-e`). The server finds `tools/` and writes `mods/` relative to the checkout.
 
 ## Tools
 
