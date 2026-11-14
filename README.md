@@ -6,7 +6,7 @@ Live-edit Deadlock's Panorama UI (XML/CSS/JS) while the game runs.
 
 Point an agent such as Claude Code and do things like: "find the panel that shows my stat boosts and move it to bottom-center". 
 
-The server installs an add-on that uses the dev tools to update the UI. The client inspects the live panel tree, tries CSS and JS in the running game, takes screenshots to check the result, and then compiles the change into a mod VPK.
+The server installs an addon that uses the dev tools to update the UI. The client inspects the live panel tree, tries CSS and JS in the running game, takes screenshots to check the result, and then compiles the change into a mod VPK.
 
 > ⚠️ **Status: Alpha, Linux only.** Tested on Bazzite (KDE Wayland) with Proton, Deadlock build #6,861 (Nov 2026).
 
