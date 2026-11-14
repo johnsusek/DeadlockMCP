@@ -1,21 +1,14 @@
 # deadlock-mcp
 
-An [MCP](https://modelcontextprotocol.io) server for inspecting and live-editing Deadlock's Panorama UI (XML / CSS / JS) while the game runs. Point an MCP client such as Claude Code at it and you can ask things like "find the panel that shows my stat boosts and move it to bottom-center". The client inspects the live panel tree, tries CSS and JS in the running game, takes screenshots to check the result, and then compiles the change into a mod VPK.
+An [MCP](https://modelcontextprotocol.io) server for building Deadlock UI mods.
 
-> **Status: alpha, Linux only.** Tested on Bazzite (KDE Wayland) with Proton, Deadlock build #6,861 (Nov 2026).
-> Not affiliated with or endorsed by Valve.
+Live-edit Deadlock's Panorama UI (XML/CSS/JS) while the game runs. 
 
-## What it can do
+Point an agent such as Claude Code and do things like: "find the panel that shows my stat boosts and move it to bottom-center". 
 
-Ask your AI assistant to change the in-game UI in plain language. It can:
+The client inspects the live panel tree, tries CSS and JS in the running game, takes screenshots to check the result, and then compiles the change into a mod VPK.
 
-* **Find any part of the UI** while the game is running, and show you how it's built.
-* **Try changes live**: move, resize, restyle or hide panels and see the result in game right away, without restarting.
-* **Take screenshots** to check how a change looks.
-* **Turn the result into a mod** you can drop into `game/citadel/addons/` and share.
-* **Launch and quit the game** for you, straight into a sandbox match with the full HUD.
-
-[`examples/stat_boosts_row`](examples/stat_boosts_row) is a complete HUD mod built this way. The full list of tools is in [TECH.md](TECH.md#tools).
+> ⚠️ **Status: Alpha, Linux only.** Tested on Bazzite (KDE Wayland) with Proton, Deadlock build #6,861 (Nov 2026).
 
 ## Getting started
 
@@ -43,7 +36,7 @@ The exported VPK is a normal mod: it doesn't include the bridge and doesn't need
 
 ### Playing online
 
-The game sessions your agent launches are for building mods, so play your matches from a normal Steam launch. The dev addon (the bridge your agent talks to) is only mounted while an agent-launched game is running: when that game exits, it's removed from `gameinfo.gi` automatically. Your mods folder (`citadel/addons`) stays mounted, so the mods you install keep working in a normal launch.
+The game sessions your agent launches are for building mods, so play your matches from a normal Steam launch. The dev addon (the bridge your agent talks to) is only mounted while an agent-launched game is running: when that game exits, it's removed from `gameinfo.gi` automatically.
 
 ## License
 
