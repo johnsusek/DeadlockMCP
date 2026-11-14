@@ -56,7 +56,7 @@ The exported VPK is a normal mod: it doesn't include the bridge and doesn't need
 
 ### Playing online
 
-The game sessions your agent launches are for building mods, so play your matches from a normal Steam launch. Also note that the dev addon stays mounted after you close the game, so the bridge loads on every launch until you ask your agent to unmount it (`addons_mount(enable=false)`). Game updates reset `gameinfo.gi`, which unmounts it too.
+The game sessions your agent launches are for building mods, so play your matches from a normal Steam launch. The dev addon (the bridge your agent talks to) is only mounted while an agent-launched game is running: when that game exits, it's removed from `gameinfo.gi` automatically. Your mods folder (`citadel/addons`) stays mounted, so the mods you install keep working in a normal launch.
 
 ## License
 

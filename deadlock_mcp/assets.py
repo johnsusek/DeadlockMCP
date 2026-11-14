@@ -290,37 +290,38 @@ class Assets:
 
     def set_mount(self, enable: bool) -> str:
         """Insert our search path ahead of `Game citadel`. The first Game path normally also becomes
-        the MOD and DEFAULT_WRITE_PATH, so pin those back to citadel with explicit Mod/Write keys."""
+        the MOD and DEFAULT_WRITE_PATH, so pin those back to citadel with explicit Mod/Write keys.
+
+        Disabling removes only the dev addon: the extra mounts (the standard mod folder) stay, so
+        installed mods keep loading in a normal Steam launch."""
         gi = self.cfg.gameinfo
         if not gi or not gi.is_file():
             raise AssetError("gameinfo.gi not found")
-        text = gi.read_text(errors="replace")
-        if enable and not self.mount_status():
-            text = self._block_rx().sub("", text)  # replace an outdated block
-        if enable == self.mount_status():
-            return f"{self.cfg.mount_path} already {'mounted' if enable else 'unmounted'}"
-        backup = gi.with_name("gameinfo.gi.mcp-bak")
-        shutil.copy2(gi, backup)
-        if enable:
+        original = gi.read_text(errors="replace")
+        text = self._block_rx().sub("", original)
+        paths = [self.cfg.mount_path, *self.cfg.extra_mounts] if enable else list(self.cfg.extra_mounts)
+        if paths:
             m = re.search(r"^([ \t]*)Game([ \t]+)citadel[ \t]*$", text, re.M)
             if not m:
                 raise AssetError("could not find the 'Game citadel' search path in gameinfo.gi")
             ind, sep = m[1], m[2]
             block = (
                 f"{ind}{self.BEGIN}\n"
-                f"{ind}Game{sep}{self.cfg.mount_path}\n"
-                + "".join(f"{ind}Game{sep}{m}\n" for m in self.cfg.extra_mounts)
+                + "".join(f"{ind}Game{sep}{p}\n" for p in paths)
                 + f"{ind}Mod{sep}citadel\n"
                 f"{ind}Write{sep}citadel\n"
                 f"{ind}{self.END}\n"
             )
             text = text[: m.start()] + block + text[m.start() :]
-            if self.cfg.addons_dir:
-                self.cfg.addons_dir.mkdir(parents=True, exist_ok=True)
-        else:
-            text = self._block_rx().sub("", text)
+        if text == original:
+            return f"{self.cfg.mount_path} already {'mounted' if enable else 'unmounted'}"
+        backup = gi.with_name("gameinfo.gi.mcp-bak")
+        shutil.copy2(gi, backup)
+        if enable and self.cfg.addons_dir:
+            self.cfg.addons_dir.mkdir(parents=True, exist_ok=True)
         gi.write_text(text)
+        kept = f"; kept {', '.join(self.cfg.extra_mounts)}" if not enable and self.cfg.extra_mounts else ""
         return (
-            f"{'mounted' if enable else 'unmounted'} {self.cfg.mount_path} in gameinfo.gi "
+            f"{'mounted' if enable else 'unmounted'} {self.cfg.mount_path} in gameinfo.gi{kept} "
             f"(previous version saved as {backup.name}). Restart the game to apply."
         )

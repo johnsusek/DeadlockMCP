@@ -77,7 +77,7 @@ Round trips take about 90–150 ms.
 * **No compiler on the hot path.** Request `.vjs_c` files are just a header plus raw JS, and request `.vxml_c` files are a compiled template with the path patched in place (`deadlock_mcp/resource.py`).
 * **One bridge per UI root.** Each top-level window (`hud`, `dashboard`, `overlay`) is a separate panel tree with its own JS contexts, so each gets its own bridge and serial stream.
 * **The addon must be a VPK.** The engine searches every VPK before any loose directory, so overrides of game files go into `mcp_addons/pak01_dir.vpk`. Only brand-new paths (requests, live layouts) can be loose files.
-* **Mounting.** The addon is mounted ahead of `citadel` in a marked block in `gameinfo.gi`, with explicit `Mod`/`Write citadel` keys so the game doesn't start writing into the addon dir.
+* **Mounting.** The addon is mounted ahead of `citadel` in a marked block in `gameinfo.gi`, with explicit `Mod`/`Write citadel` keys so the game doesn't start writing into the addon dir. `launch_game` mounts the dev addon and starts a detached watcher (`deadlock_mcp/watchdog.py`) that unmounts it when the game exits, so a normal Steam launch doesn't load the bridge. Unmounting keeps the extra mounts (`citadel/addons`) in the block, so installed mods still load. The watcher logs to `~/.cache/deadlock-mcp/watchdog.log`.
 
 ## Known limits
 

@@ -8,6 +8,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 from pathlib import Path
@@ -34,6 +35,7 @@ from .bridge import (
 from .config import DEADLOCK_APPID, Config
 from .consolelog import ConsoleLog
 from .vpk import VPK
+from . import watchdog
 
 INSTRUCTIONS = """\
 Live-edit Deadlock's Panorama UI (XML / CSS / JS) while the game runs.
@@ -92,8 +94,19 @@ def _desktop_env(base: dict | None = None) -> dict:
 
 
 def _game_running() -> bool:
-    out = subprocess.run(["pgrep", "-f", r"bin[/\\]win64[/\\]deadlock\.exe"], capture_output=True, text=True)
-    return bool(out.stdout.strip())
+    return watchdog.game_running()
+
+
+def _start_unmount_watchdog() -> None:
+    """Unmount the dev addon when this launch's game exits (see watchdog.py)."""
+    import secrets
+
+    token = secrets.token_hex(8)
+    cfg.cache_dir.mkdir(parents=True, exist_ok=True)
+    watchdog.token_file(cfg).write_text(token)
+    out = open(cfg.cache_dir / "watchdog.log", "a")
+    subprocess.Popen([sys.executable, "-m", "deadlock_mcp.watchdog", token], stdout=out, stderr=out,
+                     stdin=subprocess.DEVNULL, start_new_session=True)
 
 
 async def _call(op: str, args: dict | None = None, timeout: float = 5.0, ui: str = "auto", **kw) -> str:
@@ -160,10 +173,13 @@ async def launch_game(map: str | None = None, extra_args: str = "", via_steam: b
     Default: run deadlock.exe directly through umu-run with the game's own Proton prefix (no Steam
     launch prompt, no shader pre-caching; Steam must be running for login). Always adds
     `-console -condebug -dev -novid` (-condebug writes console.log, which the bridge replies through).
+    Mounts the dev addon for this session; it is unmounted automatically when the game exits.
     via_steam=True uses `steam -applaunch` (Steam asks the user to confirm custom arguments).
     """
     if _game_running():
         return "Deadlock is already running."
+    if map == "hero_testing":
+        return _err("+map hero_testing crashes Deadlock (even unmodded); use new_player_basics")
     msgs = []
     try:
         msgs.append(assets.set_mount(True))
@@ -173,13 +189,12 @@ async def launch_game(map: str | None = None, extra_args: str = "", via_steam: b
     if log.path:  # stale "ready" lines from the last session must not be mistaken for this one
         log.path.unlink(missing_ok=True)
         log.poll()
-    if map == "hero_testing":
-        return _err("+map hero_testing crashes Deadlock (even unmodded); use new_player_basics")
     args = f"{DEFAULT_LAUNCH_ARGS} {'+map ' + map if map else ''} {extra_args}".split()
     if via_steam:
         steam = shutil.which("steam") or "steam"
         subprocess.Popen([steam, "-applaunch", str(DEADLOCK_APPID), *args], stdout=subprocess.DEVNULL,
                          stderr=subprocess.DEVNULL, start_new_session=True, env=_desktop_env())
+        _start_unmount_watchdog()
         msgs.append("Asked Steam to launch Deadlock (Steam will ask to confirm the custom arguments).")
         return "\n".join(msgs)
     if not cfg.deadlock_dir:
@@ -204,6 +219,7 @@ async def launch_game(map: str | None = None, extra_args: str = "", via_steam: b
     out = open(cfg.cache_dir / "launch.log", "w")
     subprocess.Popen([umu, "./deadlock.exe", *args], cwd=cfg.deadlock_dir / "game/bin/win64", env=env,
                      stdout=out, stderr=out, start_new_session=True)
+    _start_unmount_watchdog()
     msgs.append(f"Launched deadlock.exe {' '.join(args)} via umu-run "
                 f"({cfg.proton_dir.name if cfg.proton_dir else 'default Proton'}). "
                 "The bridge answers once the game reaches the start screen (~10-20s); use status.")
@@ -215,7 +231,7 @@ async def quit_game() -> str:
     """Close Deadlock (terminates the process)."""
     if not _game_running():
         return "Deadlock is not running."
-    subprocess.run(["pkill", "-f", r"bin[/\\]win64[/\\]deadlock\.exe"], check=False)
+    subprocess.run(["pkill", "-f", watchdog.GAME_PATTERN], check=False)
     for _ in range(40):
         await asyncio.sleep(0.25)
         if not _game_running():
@@ -494,10 +510,11 @@ async def panel_delete(target: str, ui: str = "auto") -> str:
 
 
 @mcp.tool()
-async def bridge_install(mount: bool = True) -> str:
+async def bridge_install(mount: bool = False) -> str:
     """Build and install the in-game bridges (needs CSDK 13 + Source2Viewer-CLI): one per UI root
     (HUD, dashboard, overlay). Compiles each host layout override + bridge script into the addon
-    VPK and mounts the addon in gameinfo.gi. Restart the game afterwards."""
+    VPK. launch_game mounts the addon for its session (mount=True mounts it now). Restart the game
+    afterwards."""
     steps = []
     try:
         files = {INBOX_SCRIPT: "// template for request scripts\n", INBOX_LAYOUT: INBOX_LAYOUT_XML}
@@ -511,7 +528,7 @@ async def bridge_install(mount: bool = True) -> str:
         steps.append(f"packed {len(res['vpk']['files'])} files → {res['vpk']['vpk']}")
         if mount:
             steps.append(assets.set_mount(True))
-        steps.append("Restart Deadlock for the bridges to load." if _game_running() else "Now run launch_game.")
+        steps.append("Restart Deadlock with launch_game for the bridges to load." if _game_running() else "Now run launch_game.")
     except (AssetError, BridgeError) as e:
         steps.append(_err(e))
     return "\n".join(steps)
@@ -582,8 +599,8 @@ def export_mod(name: str, include: str = "") -> str:
 
 @mcp.tool()
 def addons_mount(enable: bool = True) -> str:
-    """Add (or remove) the addon search path in gameinfo.gi. Game updates rewrite gameinfo.gi;
-    launch_game re-mounts automatically."""
+    """Add (or remove) the dev addon search path in gameinfo.gi. launch_game mounts it and unmounts it
+    when the game exits; removing it keeps the standard mod folder mounted."""
     try:
         return assets.set_mount(enable)
     except AssetError as e:
