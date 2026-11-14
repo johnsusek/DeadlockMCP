@@ -19,6 +19,8 @@ GAMEID=umu-default umu-run cmd /c exit
 
 Use an editable install (`-e`). The server finds `tools/` and writes `mods/` relative to the checkout.
 
+> On first time use, the bridge should be installed with `bridge_install` which decompiles the three UI host layouts, injects the bridge, compiles them, and mounts the addon.
+
 ## Tools
 
 | tool | what it does |
