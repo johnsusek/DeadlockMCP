@@ -17,38 +17,25 @@ Ask your AI assistant to change the in-game UI in plain language. It can:
 
 [`examples/stat_boosts_row`](examples/stat_boosts_row) is a complete HUD mod built this way. The full list of tools is in [TECH.md](TECH.md#tools).
 
-## Requirements
+## Getting started
 
-* Linux, with Deadlock installed through Steam and running under Proton. Steam must be running so the game can log in.
-* Python ≥ 3.11
-* [`umu-run`](https://github.com/Open-Wine-Components/umu-launcher), which launches the game and provides the wine prefix the compiler runs in.
-* [Source 2 Viewer CLI](https://github.com/ValveResourceFormat/ValveResourceFormat), which decompiles game files.
-* [CSDK 13 (Reduced)](https://deadlockmodding.pages.dev/modding-tools/csdk-13), which provides `resourcecompiler.exe` and is run through Proton's wine.
-* Optional: `xdotool` and ImageMagick (`import`, `magick`) for window screenshots.
+You need Linux with Deadlock installed through Steam (running under Proton), and [Claude Code](https://claude.com/claude-code).
 
-## Setup
+1. **Clone this repo** and open Claude Code in it:
+   ```bash
+   git clone https://github.com/johnsusek/DeadlockMCP.git
+   cd DeadlockMCP
+   claude
+   ```
+2. **Tell it to set things up**, e.g. "set this up". It downloads and installs the modding tools it needs (about 2 GB to download, 6 GB on disk) and tells you if anything is missing on your system.
+3. **Connect to the MCP server**: run `/mcp` (or restart Claude Code) and approve the `deadlock` server when asked.
+4. **Ask it to launch the game.** It boots straight into a sandbox match with the full HUD, ready for changes.
 
-Ask your AI agent to clone this repo and they'll figure it out. :) 
-
-The technical details are in [TECH.md](TECH.md#tools).
-
-### Connect a client
-
-**Claude Code**: the included `.mcp.json` registers the server when you open Claude Code in this directory.
-
-**Other clients**:
-
-```json
-{ "mcpServers": { "deadlock": { "command": "/path/to/deadlock-mcp/.venv/bin/python", "args": ["-m", "deadlock_mcp"] } } }
-```
-
-Then:
-
-Ask your agent to install the bridge and launch the game.
+Using a different MCP client, or want to set things up by hand? See [TECH.md](TECH.md).
 
 ## Making a mod
 
-1. **Set up and connect your agent** as described above, then ask it to launch the game. It boots straight into the sandbox with the full match HUD.
+1. **Get set up** as described above, with the game running in the sandbox.
 2. **Tell it what you want**, for example "move my stat boosts to bottom-center" or "make the ability cooldown numbers bigger". It finds the panels, tries the change live, and takes screenshots to check. Keep giving feedback until it looks right.
 3. **Ask it to package the mod**, for example "make that permanent and export it as a mod called my_hud". You get `mods/my_hud/pak01_dir.vpk`. Copy it into `game/citadel/addons/` like any other Deadlock mod, renaming it to `pakNN_dir.vpk` if you already have other mods there.
 
