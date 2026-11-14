@@ -8,11 +8,12 @@ from __future__ import annotations
 
 import asyncio
 import collections
+import logging
 import re
 from pathlib import Path
 from typing import Callable
 
-_TS = re.compile(r"^\ufeff?\d\d/\d\d \d\d:\d\d:\d\d ")
+_log = logging.getLogger(__name__)  # stderr only: stdout is the MCP stdio channel
 
 
 class ConsoleLog:
@@ -41,12 +42,14 @@ class ConsoleLog:
         try:
             st = self.path.stat()
         except FileNotFoundError:
+            if self._ino is not None:  # the file we were reading is gone (launch_game deletes it): that game is over
+                self._ino, self._pos, self._buf = None, 0, b""
+                self._new_file()
             return 0
         ident = (st.st_dev, st.st_ino)
         if ident != self._ino or st.st_size < self._pos:
             self._ino, self._pos, self._buf = ident, 0, b""
-            for fn in self.on_new_file:
-                fn()
+            self._new_file()
         if st.st_size == self._pos:
             return 0
         with open(self.path, "rb") as f:
@@ -67,8 +70,15 @@ class ConsoleLog:
                 try:
                     fn(line)
                 except Exception:
-                    pass
+                    _log.exception("console.log listener failed on line %r", line[:200])
         return n
+
+    def _new_file(self) -> None:
+        for fn in list(self.on_new_file):
+            try:
+                fn()
+            except Exception:
+                _log.exception("console.log new-file callback failed")
 
     def start(self, interval: float = 0.03) -> None:
         if self._task is None or self._task.done():
@@ -82,12 +92,6 @@ class ConsoleLog:
                 pass
             await asyncio.sleep(interval)
 
-    def since(self, seq: int) -> list[str]:
-        return [l for s, l in self.lines if s > seq]
-
-    def tail(self, n: int = 100, pattern: str | None = None, strip_time: bool = False) -> list[str]:
+    def tail(self, n: int = 100, pattern: str | None = None) -> list[str]:
         rx = re.compile(pattern, re.I) if pattern else None
-        out = [l for _, l in self.lines if not rx or rx.search(l)]
-        if strip_time:
-            out = [_TS.sub("", l) for l in out]
-        return out[-n:]
+        return [l for _, l in self.lines if not rx or rx.search(l)][-n:]

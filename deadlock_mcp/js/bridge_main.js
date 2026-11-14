@@ -15,6 +15,8 @@
 
   function pad8(n) { var t = String(n); while (t.length < 8) { t = "0" + t; } return t; }
 
+  var lastPollError = "";
+
   function poll() {
     try {
       // Drain everything that is ready this tick (bounded).
@@ -35,13 +37,22 @@
           }
         }
       }
-    } catch (e) { $.Msg("@@MCPLOG poll error: " + e); }
+      lastPollError = "";
+    } catch (e) {
+      // Log each distinct error once instead of every tick; a recurrence after recovery is logged again.
+      var msg = String(e);
+      if (msg !== lastPollError) { $.Msg("@@MCPLOG poll error: " + msg); }
+      lastPollError = msg;
+    }
     $.Schedule(POLL, poll);
   }
 
+  // selector → matched panels for the re-apply loop; entries idle for 30s (e.g. selectors of
+  // cleared sheets) are dropped so they don't keep panels alive.
   var matchCache = {};
   function reapplyLoop() {
     try { MCP.reapplySheets(matchCache); } catch (e) {}
+    try { MCP.pruneCache(matchCache, 30000); } catch (e) {}
     $.Schedule(1.0, reapplyLoop);
   }
 

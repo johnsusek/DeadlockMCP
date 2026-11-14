@@ -36,7 +36,7 @@ The exported VPK is a normal mod: it doesn't include the bridge and doesn't need
 
 ### Playing online
 
-The game sessions your agent launches are for building mods, so play your matches from a normal Steam launch. The dev addon (the bridge your agent talks to) is only mounted while an agent-launched game is running: when that game exits, it's removed from `gameinfo.gi` automatically.
+The game sessions your agent launches are for building mods, so play your matches from a normal Steam launch. The dev addon (the bridge your agent talks to) is only mounted while an agent-launched game is running: when that game exits, it's removed from `gameinfo.gi` automatically. If the game crashed or the PC rebooted while an agent-launched game was running, ask your agent to check the status before playing: it will notice the dev addon is still mounted and remove it.
 
 ## License
 

@@ -62,9 +62,35 @@ var MCP = (function () {
     for (var i = 0; i < c.length; i++) { walk(c[i], fn); }
   }
 
+  // Hidden request hosts the bridge creates (and everything in them) are not part of the UI.
   function isInternal(p) {
     var id = p.id || "";
     return id.lastIndexOf("McpReq", 0) === 0;
+  }
+
+  // True if p sits inside an internal panel below `root` (p itself not counted).
+  function underInternal(p, root) {
+    var up = p === root ? null : p.GetParent();
+    while (up && up !== root) {
+      if (isInternal(up)) { return true; }
+      up = up.GetParent();
+    }
+    return false;
+  }
+
+  // Panels whose deletion or layout replacement would take the bridge (and usually the whole UI)
+  // down: the top root, the bridge panel, and every ancestor of the bridge. In the HUD the top root
+  // and the bridge are the same plain Panel (#CitadelHudRoot).
+  function isProtected(p) {
+    if (!p) { return false; }
+    if (!p.GetParent()) { return true; }
+    if (p.GetAttributeString && p.GetAttributeString("mcp_bridge", "") === "1") { return true; }
+    var b = bridgePanel();
+    while (b) {
+      if (b === p) { return true; }
+      b = b.GetParent();
+    }
+    return false;
   }
 
   function describe(p) {
@@ -146,9 +172,10 @@ var MCP = (function () {
   }
 
   function query(sel, root) {
-    var c = candidates(sel, root || topRoot()), out = [];
+    root = root || topRoot();
+    var c = candidates(sel, root), out = [];
     for (var i = 0; i < c.length; i++) {
-      if (!isInternal(c[i]) && matchSelector(c[i], sel, sel.length - 1)) { out.push(c[i]); }
+      if (!isInternal(c[i]) && matchSelector(c[i], sel, sel.length - 1) && !underInternal(c[i], root)) { out.push(c[i]); }
     }
     return out;
   }
@@ -165,14 +192,38 @@ var MCP = (function () {
     return p;
   }
 
+  var MAX_ITEMS = 500;
+
+  // Iterables (Map entries / Set values) → bounded array.
+  function serializeIter(it, depth) {
+    var out = [], step;
+    while (out.length < MAX_ITEMS && !(step = it.next()).done) { out.push(serialize(step.value, depth + 1)); }
+    return out;
+  }
+
   function serialize(v, depth) {
     depth = depth || 0;
     if (v === undefined) { return null; }
     if (v === null || typeof v === "number" || typeof v === "boolean" || typeof v === "string") { return v; }
     if (typeof v === "function") { return "(function " + (v.name || "anonymous") + ")"; }
     if (v && typeof v.paneltype === "string") { return { panel: describe(v) }; }
+    // Tag checks instead of instanceof: values may come from another layout's JS context.
+    // Never use toLocale*() here: locale APIs crash the game.
+    var tag = Object.prototype.toString.call(v);
+    if (tag === "[object Date]") { return isNaN(v.getTime()) ? "Invalid Date" : v.toISOString(); }
+    if (tag === "[object Error]") {
+      try { return String(v.name || "Error") + ": " + String(v.message); } catch (e) { return "(error)"; }
+    }
     if (depth > 4) { return "(…)"; }
-    if (Array.isArray(v)) { return v.slice(0, 500).map(function (x) { return serialize(x, depth + 1); }); }
+    if (Array.isArray(v)) { return v.slice(0, MAX_ITEMS).map(function (x) { return serialize(x, depth + 1); }); }
+    if (tag === "[object Map]") {
+      var pairs = [], step, it = v.entries();
+      while (pairs.length < MAX_ITEMS && !(step = it.next()).done) {
+        pairs.push([serialize(step.value[0], depth + 2), serialize(step.value[1], depth + 2)]);
+      }
+      return pairs;
+    }
+    if (tag === "[object Set]") { return serializeIter(v.values(), depth); }
     var o = {}, n = 0;
     try {
       for (var k in v) { if (n++ > 500) { break; } o[k] = serialize(v[k], depth + 1); }
@@ -180,10 +231,21 @@ var MCP = (function () {
     return o;
   }
 
+  // Non-ASCII → \uXXXX (per UTF-16 unit; JSON parsers re-pair surrogates), so console lines are
+  // pure ASCII and a chunk boundary can never split a character.
+  function asciiJson(text) {
+    return text.replace(/[\u0080-\uffff]/g, function (c) {
+      var h = c.charCodeAt(0).toString(16);
+      return "\\u" + "0000".substr(h.length) + h;
+    });
+  }
+
   function reply(id, obj) {
     var text;
     try { text = JSON.stringify(obj); }
     catch (e) { text = JSON.stringify({ ok: false, error: "unserializable result: " + e }); }
+    if (text === undefined) { text = "null"; }
+    text = asciiJson(text);
     var total = Math.max(1, Math.ceil(text.length / OUT_CHUNK));
     for (var k = 0; k < total; k++) {
       $.Msg("@@MCP " + id + " " + k + "/" + total + " " + text.substr(k * OUT_CHUNK, OUT_CHUNK));
@@ -211,37 +273,59 @@ var MCP = (function () {
     return e.panels;
   }
 
-  function applySheets(bySheet, root, cache, maxAge) {
-    var hits = 0;
+  // Drop cache entries not used for maxIdle ms (e.g. selectors of sheets that were cleared), so
+  // they don't keep arrays of panels alive. Returns the number dropped.
+  function pruneCache(cache, maxIdle, now) {
+    now = now === undefined ? Date.now() : now;
+    var n = 0;
+    for (var key in cache) {
+      if (now - (cache[key].used || cache[key].t) > maxIdle) { delete cache[key]; n++; }
+    }
+    return n;
+  }
+
+  // sheets: [{name, rules}] in priority order (later sheet, and later rule within a sheet, wins).
+  // Resolve first, write second: collect the winning [sheet, value] per panel per prop, then write
+  // only props whose recorded "mcp_css" entry differs. Returns rule × panel matches.
+  function applySheets(sheets, root, cache, maxAge) {
+    var hits = 0, targets = [], wants = new Map();
     applyErrors = [];
     root = root || topRoot();
-    for (var name in bySheet) {
-      var rules = bySheet[name];
+    for (var s = 0; s < sheets.length; s++) {
+      var name = sheets[s].name, rules = sheets[s].rules || [];
       for (var r = 0; r < rules.length; r++) {
         var panels = cachedQuery(rules[r].sel, root, cache, maxAge || 5000);
         for (var j = 0; j < panels.length; j++) {
-          var p = panels[j], rec, dirty = false;
-          try { rec = JSON.parse(p.GetAttributeString("mcp_css", "{}")); } catch (e) { rec = {}; }
+          var w = wants.get(panels[j]);
+          if (!w) { w = {}; wants.set(panels[j], w); targets.push(panels[j]); }
           for (var prop in rules[r].decl) {
-            var key = camel(prop), val = rules[r].decl[prop], cur = rec[key];
-            if (cur && cur[0] === name && cur[1] === val) { continue; }
-            try { p.style[key] = val; rec[key] = [name, val]; dirty = true; } catch (e) {
-              var msg = prop + ": " + val + " → " + String(e && e.message || e);
-              if (applyErrors.indexOf(msg) < 0 && applyErrors.length < 20) { applyErrors.push(msg); }
-            }
+            var key = camel(prop);
+            delete w[key];  // re-insert so the write order follows the winning declaration order
+            w[key] = [name, rules[r].decl[prop], prop];
           }
-          if (dirty) { p.SetAttributeString("mcp_css", JSON.stringify(rec)); }
           hits++;
         }
       }
+    }
+    for (var t = 0; t < targets.length; t++) {
+      var p = targets[t], want = wants.get(p), rec, dirty = false;
+      if (!p.IsValid()) { continue; }
+      try { rec = JSON.parse(p.GetAttributeString("mcp_css", "{}")); } catch (e) { rec = {}; }
+      for (var k in want) {
+        var win = want[k], cur = rec[k];
+        if (cur && cur[0] === win[0] && cur[1] === win[1]) { continue; }
+        try { p.style[k] = win[1]; rec[k] = [win[0], win[1]]; dirty = true; } catch (e) {
+          var msg = win[2] + ": " + win[1] + " → " + String(e && e.message || e);
+          if (applyErrors.indexOf(msg) < 0 && applyErrors.length < 20) { applyErrors.push(msg); }
+        }
+      }
+      if (dirty) { p.SetAttributeString("mcp_css", JSON.stringify(rec)); }
     }
     return hits;
   }
 
   function applyRules(sheet, rules, root) {
-    var one = {};
-    one[sheet] = rules;
-    return applySheets(one, root);
+    return applySheets([{ name: sheet, rules: rules }], root);
   }
 
   // Reset an inline style. Many style props are aliases of a shorthand (fontSize → font,
@@ -289,16 +373,36 @@ var MCP = (function () {
 
   function setSheets(sheets) { bridgePanel().SetAttributeString("mcp_sheets", JSON.stringify(sheets)); }
 
+  // Store a sheet as the most recently applied one (it wins over every other sheet). Each sheet
+  // carries a sequence number: object key order isn't reliable (integer-like names sort first).
+  function putSheet(sheets, name, sheet) {
+    var top = 0;
+    for (var n in sheets) { if (n !== name && (sheets[n].seq || 0) > top) { top = sheets[n].seq || 0; } }
+    delete sheets[name];
+    sheet.seq = top + 1;
+    sheets[name] = sheet;
+    return sheets;
+  }
+
+  function orderedSheets(sheets) {
+    var list = [];
+    for (var name in sheets) { list.push({ name: name, rules: sheets[name].rules, persist: sheets[name].persist, seq: sheets[name].seq || 0 }); }
+    list.sort(function (a, b) { return a.seq - b.seq; });  // stable: legacy entries keep key order
+    return list;
+  }
+
   function reapplySheets(cache) {
-    var sheets = getSheets(), live = {}, any = false;
-    for (var name in sheets) { if (sheets[name].persist) { live[name] = sheets[name].rules; any = true; } }
-    if (!any) { return 0; }
+    var all = orderedSheets(getSheets()), live = [];
+    for (var i = 0; i < all.length; i++) { if (all[i].persist) { live.push(all[i]); } }
+    if (!live.length) { return 0; }
     return applySheets(live, null, cache);
   }
 
   return {
     topRoot: topRoot, bridgePanel: bridgePanel, children: children, walk: walk, describe: describe,
+    isInternal: isInternal, isProtected: isProtected, matchSelector: matchSelector,
     query: query, resolve: resolve, serialize: serialize, reply: reply, applyRules: applyRules,
-    clearSheet: clearSheet, resetStyle: resetStyle, getSheets: getSheets, lastApplyErrors: function () { return applyErrors; }, setSheets: setSheets, reapplySheets: reapplySheets,
+    clearSheet: clearSheet, resetStyle: resetStyle, getSheets: getSheets, lastApplyErrors: function () { return applyErrors; },
+    setSheets: setSheets, putSheet: putSheet, reapplySheets: reapplySheets, pruneCache: pruneCache,
   };
 })();

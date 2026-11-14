@@ -11,15 +11,18 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEADLOCK_APPID = 1422450
 
 
-
-def _steam_libraries() -> list[Path]:
-    roots = [
+def _steam_roots() -> list[Path]:
+    """Where the Steam client itself may be installed (native, legacy symlink, Flatpak)."""
+    return [
         Path.home() / ".local/share/Steam",
         Path.home() / ".steam/steam",
         Path.home() / ".var/app/com.valvesoftware.Steam/.local/share/Steam",
     ]
+
+
+def _steam_libraries() -> list[Path]:
     libs: list[Path] = []
-    for root in roots:
+    for root in _steam_roots():
         vdf = root / "steamapps/libraryfolders.vdf"
         if vdf.is_file():
             for m in re.finditer(r'"path"\s+"([^"]+)"', vdf.read_text(errors="replace")):
@@ -88,6 +91,17 @@ class Config:
     cache_dir: Path = field(
         default_factory=lambda: _env_path("DEADLOCK_MCP_CACHE", Path.home() / ".cache/deadlock-mcp")  # type: ignore[arg-type]
     )
+    # CSDK addon trees: sources are written to csdk_content_dir, resourcecompiler writes to csdk_game_dir.
+    # Default (None): <csdk_dir>/{content,game}/citadel_addons/<addon_name>.
+    csdk_content_dir: Path | None = field(default_factory=lambda: _env_path("CSDK_CONTENT", None))
+    csdk_game_dir: Path | None = field(default_factory=lambda: _env_path("CSDK_GAME", None))
+
+    def __post_init__(self) -> None:
+        if self.csdk_dir:
+            if self.csdk_content_dir is None:
+                self.csdk_content_dir = self.csdk_dir / "content/citadel_addons" / self.addon_name
+            if self.csdk_game_dir is None:
+                self.csdk_game_dir = self.csdk_dir / "game/citadel_addons" / self.addon_name
 
     # --- derived paths -------------------------------------------------
     @property
@@ -107,13 +121,39 @@ class Config:
         return self.deadlock_dir / "game" / self.mount_path if self.deadlock_dir else None
 
     @property
+    def game_library(self) -> Path | None:
+        """The Steam library holding Deadlock (<lib>/steamapps/common/Deadlock), if it is laid out like one."""
+        if self.deadlock_dir and self.deadlock_dir.parent.parent.name == "steamapps":
+            return self.deadlock_dir.parent.parent.parent
+        return None
+
+    @property
+    def steam_root(self) -> Path | None:
+        """The Steam client install (env STEAM_COMPAT_CLIENT_INSTALL_PATH). Not necessarily Deadlock's
+        library: the game may live in a secondary library."""
+        env = os.environ.get("STEAM_COMPAT_CLIENT_INSTALL_PATH")
+        if env:
+            return Path(env).expanduser()
+        return next((r for r in _steam_roots() if (r / "steamapps").is_dir()), None)
+
+    @property
+    def compat_data_dir(self) -> Path | None:
+        """Deadlock's Proton compat data; Steam keeps it in the game's own library."""
+        lib = self.game_library or self.steam_root
+        return lib / "steamapps/compatdata" / str(DEADLOCK_APPID) if lib else None
+
+    @property
     def proton_dir(self) -> Path | None:
-        """Proton used to run the game directly (env DEADLOCK_PROTON, else Steam's Proton - Experimental)."""
+        """Proton used to run the game directly (env DEADLOCK_PROTON, else Steam's Proton - Experimental,
+        looked up in Deadlock's library first, then every other library)."""
         env = os.environ.get("DEADLOCK_PROTON")
         if env:
             return Path(env).expanduser()
-        if self.deadlock_dir:
-            p = self.deadlock_dir.parent / "Proton - Experimental"
+        libs = _steam_libraries()
+        if self.game_library:
+            libs.insert(0, self.game_library)
+        for lib in libs:
+            p = lib / "steamapps/common/Proton - Experimental"
             if (p / "proton").is_file():
                 return p
         return None

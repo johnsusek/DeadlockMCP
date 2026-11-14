@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 import struct
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -14,12 +16,17 @@ class Entry:
     length: int
     preload: bytes
     data_base: int
+    crc: int = 0  # CRC32 of the whole file (preload + archive data), as stored in the directory
 
 
 class VPK:
+    """Raises ValueError, struct.error or IndexError on a corrupt or truncated directory file."""
+
     def __init__(self, dir_path: Path):
         self.path = Path(dir_path)
         self.entries: dict[str, Entry] = {}
+        st = self.path.stat()
+        self.stamp = (st.st_mtime_ns, st.st_size)  # lets callers notice the file changed (game update)
         self._load()
 
     def _load(self) -> None:
@@ -40,20 +47,25 @@ class VPK:
         while ext := cstr():
             while d := cstr():
                 while name := cstr():
-                    _crc, pre, arc, off, ln, _term = struct.unpack_from("<IHHIIH", data, pos)
+                    crc, pre, arc, off, ln, _term = struct.unpack_from("<IHHIIH", data, pos)
                     pos += 18
+                    if pos + pre > len(data):
+                        raise ValueError(f"{self.path}: truncated preload data")
                     preload = data[pos : pos + pre]
                     pos += pre
                     d2 = d.strip()
                     fn = f"{name}.{ext}" if ext.strip() else name
                     p = f"{d2}/{fn}" if d2 else fn
-                    self.entries[p.lower()] = Entry(arc, off, ln, preload, data_base)
+                    self.entries[p.lower()] = Entry(arc, off, ln, preload, data_base, crc)
 
     def __contains__(self, name: str) -> bool:
         return name.lower() in self.entries
 
     def names(self) -> list[str]:
         return list(self.entries)
+
+    def crc(self, name: str) -> int:
+        return self.entries[name.lower()].crc
 
     def read(self, name: str) -> bytes:
         e = self.entries[name.lower()]
@@ -101,6 +113,14 @@ def write_vpk(path: Path, files: dict[str, bytes]) -> None:
     tree_md5 = hashlib.md5(t).digest()
     archive_md5_md5 = hashlib.md5(b"").digest()
     whole = hashlib.md5(header + t + blob + tree_md5 + archive_md5_md5).digest()
-    tmp = Path(str(path) + ".tmp")
-    tmp.write_bytes(header + t + blob + tree_md5 + archive_md5_md5 + whole)
-    tmp.replace(path)
+    # unique temp name in the same directory: concurrent packs must not write into each other's file
+    path = Path(path)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(header + t + blob + tree_md5 + archive_md5_md5 + whole)
+        os.chmod(tmp, 0o644)  # mkstemp creates 0600
+        os.replace(tmp, path)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise

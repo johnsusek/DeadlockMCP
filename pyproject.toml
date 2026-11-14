@@ -1,6 +1,6 @@
 [project]
 name = "deadlock-mcp"
-version = "0.1.0"
+dynamic = ["version"]
 description = "MCP server for live-editing Deadlock's Panorama UI (XML / CSS / JS)"
 readme = "README.md"
 license = "MIT"
@@ -16,7 +16,7 @@ classifiers = [
 dependencies = ["mcp>=2.3,<3", "esprima>=4.0"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "pytest-asyncio>=0.24"]
+dev = ["pytest>=8", "pytest-asyncio>=0.24", "mini-racer>=0.12"]
 
 [project.scripts]
 deadlock-mcp = "deadlock_mcp.server:main"
@@ -27,6 +27,9 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 packages = ["deadlock_mcp"]
+
+[tool.setuptools.dynamic]
+version = {attr = "deadlock_mcp.__version__"}
 
 [tool.setuptools.package-data]
 deadlock_mcp = ["js/*.js", "templates/*"]
