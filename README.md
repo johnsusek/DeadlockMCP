@@ -1,4 +1,4 @@
-# deadlock-mcp
+# DeadlockMCP
 
 An [MCP](https://modelcontextprotocol.io) server for building Deadlock UI mods.
 
