@@ -10,3 +10,4 @@ tools/
 
 # export_mod output and personal mod workspaces (may contain decompiled game files)
 mods/
+notes/
