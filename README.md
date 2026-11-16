@@ -101,7 +101,7 @@ Parameters and implementation details: [TECH.md](TECH.md#tools).
 
 * `tools/s2v/`: [Source 2 Viewer CLI](https://github.com/ValveResourceFormat/ValveResourceFormat), to decompile game files.
 * `tools/Reduced_CSDK_13/`: [CSDK 13](https://deadlockmodding.pages.dev/modding-tools/csdk-13), whose `resourcecompiler.exe` compiles Panorama files (about 5.4 GB).
-* `wine/`: a Wine prefix made with Proton's wine, to run the compiler.
+* `wine/`: a Wine prefix made by Proton, to run the compiler.
 * `mods/`: exported mods.
 
 It doesn't install system packages.

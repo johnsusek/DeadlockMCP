@@ -179,11 +179,17 @@ def _csdk_step(cfg: Config) -> str:
 # ------------------------------------------------------------------ Wine prefix
 
 
-async def _make_prefix(cfg: Config) -> None:
-    env = dict(desktop_env(), WINEDEBUG="-all", WINEPREFIX=str(cfg.wineprefix))
-    code, out = await _run([str(cfg.wine), "wineboot", "--init"], timeout=600, env=env)
+async def _make_prefix(cfg: Config, proton: Path) -> None:
+    """Let the compiler's own Proton build the prefix: a bare `wineboot` prefix lacks the DXVK setup without which
+    resourcecompiler can't load rendersystemdx11.dll. Proton puts the prefix in <STEAM_COMPAT_DATA_PATH>/pfx."""
+    compat = cfg.wineprefix.parent
+    compat.mkdir(parents=True, exist_ok=True)
+    env = dict(desktop_env(), STEAM_COMPAT_DATA_PATH=str(compat))
+    if cfg.steam_root:
+        env["STEAM_COMPAT_CLIENT_INSTALL_PATH"] = str(cfg.steam_root)
+    code, out = await _run([str(proton), "run", "cmd", "/c", "exit"], timeout=600, env=env)
     if not (cfg.wineprefix / "system.reg").is_file():
-        raise AssetError(f"wineboot failed (exit {code}): {out[-400:].strip()}")
+        raise AssetError(f"Proton failed to create the prefix (exit {code}): {out[-400:].strip()}")
 
 
 def _prefix_step(cfg: Config) -> str:
@@ -193,7 +199,12 @@ def _prefix_step(cfg: Config) -> str:
         return f"done: {cfg.wineprefix}"
     if not cfg.wine or not cfg.wine.is_file():
         return "needs action: no Proton found; install Proton through Steam (or GE-Proton), or set DEADLOCK_WINE"
-    return _job("prefix", lambda: _make_prefix(cfg))
+    proton = cfg.wine.parents[2] / "proton"  # <proton>/files/bin/wine
+    if not proton.is_file():
+        return f"needs action: {cfg.wine} is not inside a Proton build (no {proton}); set WINEPREFIX to a ready prefix"
+    if cfg.wineprefix.name != "pfx":
+        return f"needs action: Proton can only create a prefix named pfx, not {cfg.wineprefix}"
+    return _job("prefix", lambda: _make_prefix(cfg, proton))
 
 
 async def setup(cfg: Config) -> dict:

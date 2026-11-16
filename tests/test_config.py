@@ -70,7 +70,7 @@ def test_data_dir_defaults(tmp_path, monkeypatch):
         monkeypatch.delenv(var, raising=False)
     data = tmp_path / ".local/share/deadlock-mcp"
     cfg = Config()
-    assert cfg.data_dir == data and cfg.mods_dir == data / "mods" and cfg.wineprefix == data / "wine"
+    assert cfg.data_dir == data and cfg.mods_dir == data / "mods" and cfg.wineprefix == data / "wine/pfx"
     assert cfg.csdk_dir == data / "tools/Reduced_CSDK_13" and cfg.s2v_cli == data / "tools/s2v/Source2Viewer-CLI"
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "xdg"))
     assert Config().data_dir == tmp_path / "xdg/deadlock-mcp"

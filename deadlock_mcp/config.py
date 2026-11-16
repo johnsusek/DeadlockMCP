@@ -89,7 +89,7 @@ class Config:
     rc_cmd: str | None = field(default_factory=lambda: os.environ.get("DEADLOCK_RC_CMD") or None)
     wine: Path | None = field(default_factory=lambda: _env_path("DEADLOCK_WINE", find_proton_wine()))
     wineprefix: Path = field(
-        default_factory=lambda: _env_path("WINEPREFIX", data_home() / "wine")  # type: ignore[arg-type]
+        default_factory=lambda: _env_path("WINEPREFIX", data_home() / "wine/pfx")  # type: ignore[arg-type]
     )
     # Search path (relative to game/) mounted ahead of `citadel` in gameinfo.gi; compiled files go here.
     mount_path: str = field(default_factory=lambda: os.environ.get("DEADLOCK_MOUNT", "citadel/mcp_addons"))

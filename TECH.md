@@ -4,7 +4,7 @@
 
 Client config: [README.md](README.md#getting-started). For development, `python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'`; the included `.mcp.json` runs that checkout for clients that read project-level MCP config.
 
-`setup` installs the toolchain into the data dir, running the long steps (Source 2 Viewer download, CSDK download with `gdown` and extraction with `7z`, `wineboot --init` with Proton's wine) as background tasks, so each call returns at once with each step's state. If the Google Drive download fails it looks for a `*CSDK*13*.7z` in `~/Downloads` instead.
+`setup` installs the toolchain into the data dir, running the long steps (Source 2 Viewer download, CSDK download with `gdown` and extraction with `7z`, `proton run` from the Proton build the compiler's wine belongs to, which sets up the DXVK the compiler needs) as background tasks, so each call returns at once with each step's state. If the Google Drive download fails it looks for a `*CSDK*13*.7z` in `~/Downloads` instead.
 
 On first use, `bridge_install` decompiles the three UI host layouts, injects the bridge, and compiles them into the dev addon. `launch_game` mounts the addon for each session.
 
@@ -41,7 +41,7 @@ Pass `ui='hud' | 'dashboard' | 'overlay'` to pick a panel tree. The default `aut
 | `CSDK_DIR` | `<data dir>/tools/Reduced_CSDK_13` |
 | `S2V_CLI` | `<data dir>/tools/s2v/Source2Viewer-CLI` |
 | `DEADLOCK_PROTON` | Steam's *Proton - Experimental* (used to run the game) |
-| `DEADLOCK_WINE` / `WINEPREFIX` | newest GE-Proton (else Proton) wine / `<data dir>/wine` (used for the compiler) |
+| `DEADLOCK_WINE` / `WINEPREFIX` | newest GE-Proton (else Proton) wine / `<data dir>/wine/pfx` (used for the compiler) |
 | `CSDK_CONTENT` / `CSDK_GAME` | `<CSDK_DIR>/{content,game}/citadel_addons/mcp_bridge` (where sources are written / compiled files land) |
 | `STEAM_COMPAT_CLIENT_INSTALL_PATH` | the Steam client install (`~/.local/share/Steam`, `~/.steam/steam`, the Flatpak's or the Snap's); the game's Proton prefix is taken from the library Deadlock is in |
 | `DEADLOCK_RC_CMD` | custom compiler command template (`{rc}`, `{src_win}`) |
