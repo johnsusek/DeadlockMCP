@@ -1,0 +1,22 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.johnsusek/deadlock-mcp",
+  "title": "Deadlock UI",
+  "description": "Live-edit Deadlock's Panorama UI (XML, CSS, JS) while the game runs and export the result as a mod.",
+  "repository": {
+    "url": "https://github.com/johnsusek/DeadlockMCP",
+    "source": "github"
+  },
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "deadlock-mcp",
+      "version": "0.1.0",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}
