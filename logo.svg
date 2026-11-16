@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="deadlock-mcp">
+<title>deadlock-mcp</title>
+<rect width="512" height="512" rx="112" fill="#efdebf"/>
+<path fill="#2f4442" fill-rule="evenodd" d="M166.96,272.59A110.00,110.00 0 1 1 345.04,272.59L379.43,406.00H132.57zM188.83,267.90A90.00,90.00 0 1 1 323.17,267.90L353.62,386.00H158.38z"/>
+<path fill="#72947f" fill-rule="evenodd" d="M188.83,267.90A90.00,90.00 0 1 1 323.17,267.90L353.62,386.00H158.38zM211.08,261.69A70.00,70.00 0 1 1 300.92,261.69L327.81,366.00H184.19z"/>
+<path fill="#d5903f" fill-rule="evenodd" d="M211.08,261.69A70.00,70.00 0 1 1 300.92,261.69L327.81,366.00H184.19zM234.00,252.90A50.00,50.00 0 1 1 278.00,252.90L302.00,346.00H210.00z"/>
+<path fill="#222021" d="M234.00,252.90A50.00,50.00 0 1 1 278.00,252.90L302.00,346.00H210.00z"/>
+</svg>

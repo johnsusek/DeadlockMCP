@@ -2,34 +2,9 @@
 
 ## Setup
 
-```bash
-git clone <this repo> deadlock-mcp && cd deadlock-mcp
-python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
+Setup steps and client config: [README.md](README.md#getting-started). For development, install with `.[dev]` for the test dependencies. [`CLAUDE.md`](CLAUDE.md) has the same steps written for an agent to run. The included `.mcp.json` registers the server for clients that read project-level MCP config.
 
-# Source 2 Viewer CLI → tools/s2v
-mkdir -p tools/s2v && curl -L -o /tmp/s2v.zip \
-  https://github.com/ValveResourceFormat/ValveResourceFormat/releases/download/20.1/cli-linux-x64.zip \
-  && unzip /tmp/s2v.zip -d tools/s2v
-
-# CSDK 13 (Reduced) → extract to tools/Reduced_CSDK_13
-
-# one-time wine prefix for the compiler (~/Games/umu/umu-default)
-GAMEID=umu-default umu-run cmd /c exit
-```
-
-Use an editable install (`-e`). The server finds `tools/` and writes `mods/` relative to the checkout.
-
-> On first time use, the bridge should be installed with `bridge_install` which decompiles the three UI host layouts, injects the bridge, and compiles them into the dev addon. `launch_game` mounts the addon for each session.
-
-[`CLAUDE.md`](CLAUDE.md) has the same steps written for Claude Code, which is what runs them when a user says "set this up".
-
-### Connecting a client
-
-Claude Code picks up the included `.mcp.json` when opened in this directory. Other clients run the server over stdio:
-
-```json
-{ "mcpServers": { "deadlock": { "command": "/path/to/DeadlockMCP/.venv/bin/python", "args": ["-m", "deadlock_mcp"] } } }
-```
+On first use, `bridge_install` decompiles the three UI host layouts, injects the bridge, and compiles them into the dev addon. `launch_game` mounts the addon for each session.
 
 ## Tools
 
