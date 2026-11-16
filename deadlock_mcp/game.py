@@ -63,7 +63,14 @@ def umu_command(cfg: Config, args: list[str]) -> tuple[list[str], Path, dict]:
 
 
 def steam_command(args: list[str]) -> tuple[list[str], dict]:
-    return [shutil.which("steam") or "steam", "-applaunch", str(DEADLOCK_APPID), *args], desktop_env()
+    """`steam -applaunch` through native or Snap Steam (/snap/bin may be missing from a client's PATH), else Flatpak."""
+    env = desktop_env()
+    launch = ["-applaunch", str(DEADLOCK_APPID), *args]
+    if steam := shutil.which("steam", path=f"{env.get('PATH', '')}:/snap/bin"):
+        return [steam, *launch], env
+    if shutil.which("flatpak") and (Path.home() / ".var/app/com.valvesoftware.Steam").is_dir():
+        return ["flatpak", "run", "com.valvesoftware.Steam", *launch], env
+    raise DeadlockError("Steam not found: no `steam` on PATH and no Flatpak Steam (com.valvesoftware.Steam)")
 
 
 def spawn(cmd: list[str], log: Path | None, cwd: Path | None = None, env: dict | None = None,

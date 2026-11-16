@@ -13,7 +13,11 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Topic :: Games/Entertainment",
 ]
-dependencies = ["mcp>=2.3,<3", "esprima>=4.0"]
+dependencies = ["mcp>=2.3,<3", "esprima>=4.0", "gdown>=6.5"]
+
+[project.urls]
+Homepage = "https://github.com/johnsusek/DeadlockMCP"
+Issues = "https://github.com/johnsusek/DeadlockMCP/issues"
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "pytest-asyncio>=0.24", "mini-racer>=0.12"]

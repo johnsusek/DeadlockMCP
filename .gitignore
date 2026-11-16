@@ -5,9 +5,7 @@ __pycache__/
 build/
 dist/
 
-# local toolchain (Source 2 Viewer CLI, CSDK 13): downloaded per README
+# personal toolchain and mod workspaces (may contain decompiled game files)
 tools/
-
-# export_mod output and personal mod workspaces (may contain decompiled game files)
 mods/
 notes/

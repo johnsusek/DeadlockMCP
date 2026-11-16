@@ -62,3 +62,25 @@ def test_csdk_dirs(steam, monkeypatch, tmp_path):
     monkeypatch.setenv("CSDK_GAME", str(tmp_path / "out"))
     assert Config(csdk_dir=Path("/csdk")).csdk_game_dir == tmp_path / "out"
     assert Config(csdk_dir=None, csdk_content_dir=None).csdk_content_dir is None
+
+
+def test_data_dir_defaults(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    for var in ("DEADLOCK_MCP_DATA", "XDG_DATA_HOME", "CSDK_DIR", "S2V_CLI", "WINEPREFIX"):
+        monkeypatch.delenv(var, raising=False)
+    data = tmp_path / ".local/share/deadlock-mcp"
+    cfg = Config()
+    assert cfg.data_dir == data and cfg.mods_dir == data / "mods" and cfg.wineprefix == data / "wine"
+    assert cfg.csdk_dir == data / "tools/Reduced_CSDK_13" and cfg.s2v_cli == data / "tools/s2v/Source2Viewer-CLI"
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "xdg"))
+    assert Config().data_dir == tmp_path / "xdg/deadlock-mcp"
+    monkeypatch.setenv("DEADLOCK_MCP_DATA", str(tmp_path / "mine"))
+    assert Config().csdk_dir == tmp_path / "mine/tools/Reduced_CSDK_13"
+
+
+def test_snap_steam_root(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("STEAM_COMPAT_CLIENT_INSTALL_PATH", raising=False)
+    root = tmp_path / "snap/steam/common/.local/share/Steam"
+    (root / "steamapps").mkdir(parents=True)
+    assert Config(deadlock_dir=None).steam_root == root

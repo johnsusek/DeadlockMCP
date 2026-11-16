@@ -18,7 +18,7 @@ The game layout is not included here because it's Valve's file. To rebuild:
    `<include src="file://{resources}/styles/mods/stat_boosts_row.css" />`
 3. `compile_source("panorama/styles/mods/stat_boosts_row.css", <css>)`, then
    `compile_source("panorama/layout/citadel_hud_active_player_stats.xml", <edited xml>)`.
-4. `export_mod("stat_boosts_row")` writes `mods/stat_boosts_row/pak01_dir.vpk`. Copy that file into
-   `game/citadel/addons/` (rename it to `pakNN_dir.vpk` if you have other mods).
+4. `export_mod("stat_boosts_row", install=True)` writes `~/.local/share/deadlock-mcp/mods/stat_boosts_row/pak01_dir.vpk`
+   and copies it into `game/citadel/addons/` as the next free `pakNN_dir.vpk`.
 
 Every game update that changes this layout means repeating step 1–4.

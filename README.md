@@ -1,4 +1,5 @@
-<p align="center"><img src="logo.svg" alt="deadlock-mcp logo" width="160"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/johnsusek/DeadlockMCP/main/logo.svg" alt="deadlock-mcp logo" width="160"></p>
+<!-- mcp-name: io.github.johnsusek/deadlock-mcp -->
 
 # DeadlockMCP
 
@@ -14,45 +15,28 @@ The server installs an addon that uses the dev tools to update the UI. The agent
 
 ## Getting started
 
-You need Linux with Deadlock installed through Steam (running under Proton), `python3` 3.11+, `umu-run`, `unzip` and `7z`. Steam must be running when the game launches, so the game can log in.
+You need Linux with Deadlock installed through Steam (running under Proton) and [uv](https://docs.astral.sh/uv/). Steam must be running when the game launches, so the game can log in.
 
-1. **Clone this repo and install the server** (it must be an editable install: the server finds `tools/` and writes `mods/` relative to the checkout):
-   ```bash
-   git clone https://github.com/johnsusek/DeadlockMCP.git
-   cd DeadlockMCP
-   python3 -m venv .venv && .venv/bin/pip install -e .
-   ```
-2. **Install Source 2 Viewer CLI** into `tools/s2v/`:
-   ```bash
-   mkdir -p tools && curl -L -o tools/s2v.zip https://github.com/ValveResourceFormat/ValveResourceFormat/releases/download/20.1/cli-linux-x64.zip && unzip tools/s2v.zip -d tools/s2v && rm tools/s2v.zip
-   ```
-3. **Install CSDK 13 (Reduced)**: download the `.7z` (about 1.6 GB) from [deadlockmodding.pages.dev](https://deadlockmodding.pages.dev/modding-tools/csdk-13) into `tools/`, then extract it:
-   ```bash
-   7z x tools/Reduced_CSDK_13.7z -otools/
-   ```
-4. **Create the compiler's Wine prefix** (one time, takes a minute):
-   ```bash
-   GAMEID=umu-default umu-run cmd /c exit
-   ```
-5. **Add the server to your MCP client** (stdio), using the absolute path to your checkout:
+1. **Add the server to your MCP client** (stdio). It must run on the same Linux desktop session as the game:
    ```json
    {
      "mcpServers": {
        "deadlock": {
-         "command": "/path/to/DeadlockMCP/.venv/bin/python",
-         "args": ["-m", "deadlock_mcp"]
+         "command": "uvx",
+         "args": ["deadlock-mcp"]
        }
      }
    }
    ```
-   It must run on the same Linux desktop session as the game. Paths are auto-detected; [TECH.md](TECH.md#environment-overrides) lists the environment variables to override them.
-6. **Ask your agent to finish setup**: run `status` (no tool should say "missing"), then `bridge_install`, then `launch_game(map="new_player_basics")`. The game boots straight into a sandbox match with the full HUD, ready for changes.
+   With Claude Code: `claude mcp add deadlock -- uvx deadlock-mcp`. Paths are auto-detected; [TECH.md](TECH.md#environment-overrides) lists the environment variables to override them.
+2. **Ask your agent to set it up.** It runs `setup`, which downloads [Source 2 Viewer CLI](https://github.com/ValveResourceFormat/ValveResourceFormat) and [CSDK 13](https://deadlockmodding.pages.dev/modding-tools/csdk-13) (about 1.6 GB) and creates a Wine prefix for the compiler. If the CSDK download fails, it asks you to download the `.7z` into `~/Downloads` yourself. `setup` also lists any missing system tools (`7z`, `xdotool`, ImageMagick, `umu-run`) with the install command for your distro.
+3. **Ask it to start the game**: it runs `bridge_install`, then `launch_game(map="new_player_basics")`. The game boots straight into a sandbox match with the full HUD, ready for changes.
 
 ## Making a mod
 
 1. **Get set up** as described above, with the game running in the sandbox.
 2. **Tell your agent what you want**, for example "move my stat boosts to bottom-center" or "make the ability cooldown numbers bigger". It finds the panels, tries the change live, and takes screenshots to check. Keep giving feedback until it looks right.
-3. **Ask it to package the mod**, for example "make that permanent and export it as a mod called my_hud". You get `mods/my_hud/pak01_dir.vpk`. Copy it into `game/citadel/addons/` like any other Deadlock mod, renaming it to `pakNN_dir.vpk` if you already have other mods there.
+3. **Ask it to package the mod**, for example "make that permanent and install it as a mod called my_hud". You get `~/.local/share/deadlock-mcp/mods/my_hud/pak01_dir.vpk`, and with install it's also copied into `game/citadel/addons/` under the next free `pakNN_dir.vpk` name.
 
 The exported VPK is a normal mod: it doesn't include the bridge and doesn't need this tool to run.
 
@@ -98,12 +82,13 @@ Most tools take `ui='hud' | 'dashboard' | 'overlay'` to pick a panel tree; the d
 | `compile_source` | Compiles a Panorama file into the dev addon as a permanent override (applies after a restart). |
 | `list_overrides` | Lists the compiled files in the dev addon. |
 | `remove_override` | Removes a compiled override from the dev addon. |
-| `export_mod` | Exports the overrides, without the bridge, as a standalone mod VPK in `mods/<name>/`. |
+| `export_mod` | Exports the overrides, without the bridge, as a standalone mod VPK, and optionally installs it into the game. |
 
 **Setup**
 
 | tool | description |
 |---|---|
+| `setup` | Installs Source 2 Viewer CLI, CSDK 13 and the compiler's Wine prefix, and lists missing system tools. |
 | `bridge_install` | Builds the in-game bridges and packs them into the dev addon; re-run after a game update. |
 | `bridge_uninstall` | Removes the bridge files from the dev addon. |
 | `addons_mount` | Adds or removes the dev addon's search path in `gameinfo.gi`. |
@@ -112,22 +97,22 @@ Parameters and implementation details: [TECH.md](TECH.md#tools).
 
 ## What it installs
 
-Setup puts everything in the checkout, apart from a Wine prefix:
+`setup` puts everything under `~/.local/share/deadlock-mcp/` (`$DEADLOCK_MCP_DATA` to move it):
 
-* `.venv/`: the Python environment for the server (`mcp`, `esprima`).
 * `tools/s2v/`: [Source 2 Viewer CLI](https://github.com/ValveResourceFormat/ValveResourceFormat), to decompile game files.
 * `tools/Reduced_CSDK_13/`: [CSDK 13](https://deadlockmodding.pages.dev/modding-tools/csdk-13), whose `resourcecompiler.exe` compiles Panorama files (about 5.4 GB).
-* `~/Games/umu/umu-default/`: a Wine prefix created by `umu-run`, to run the compiler.
+* `wine/`: a Wine prefix made with Proton's wine, to run the compiler.
+* `mods/`: exported mods.
 
-It needs `python3` 3.11+, `umu-run`, `unzip` and `7z` already installed, and doesn't install system packages.
+It doesn't install system packages.
 
 ## What it modifies
 
 * **`game/citadel/gameinfo.gi`**: `launch_game` adds a marked block that mounts the dev addon (and `citadel/addons`, so installed mods still load), saving the previous file as `gameinfo.gi.mcp-bak`. The addon is unmounted automatically when that game exits; if the game crashed or the PC rebooted, `status` warns and `addons_mount(False)` removes it.
 * **`game/citadel/mcp_addons/`**: the dev addon, holding the bridge, your compiled overrides, and the request files the server talks to the game through.
 * **`game/citadel/console.log`**: the game writes it (`-condebug`) and the server deletes it on each launch.
-* **`tools/Reduced_CSDK_13/{content,game}/citadel_addons/mcp_bridge/`**: sources and compiler output.
-* **`mods/`**: exported mods.
+* **`game/citadel/addons/`**: `export_mod(install=True)` copies the mod there.
+* **`~/.local/share/deadlock-mcp/tools/Reduced_CSDK_13/{content,game}/citadel_addons/mcp_bridge/`**: sources and compiler output.
 * **`~/.cache/deadlock-mcp/`**: decompiled sources, launch and watcher logs.
 
 No shipped game files are changed. Agent-launched games are for building mods: play your matches from a normal Steam launch, which doesn't load the bridge.

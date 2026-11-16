@@ -217,8 +217,7 @@ class Assets:
             raise AssetError("No Proton wine binary found; set DEADLOCK_WINE or DEADLOCK_RC_CMD")
         if not (self.cfg.wineprefix / "system.reg").is_file():
             raise AssetError(
-                f"Wine prefix {self.cfg.wineprefix} is not initialised. Run once: "
-                "GAMEID=umu-default umu-run cmd /c exit   (or set WINEPREFIX)"
+                f"Wine prefix {self.cfg.wineprefix} is not initialised; run setup (or set WINEPREFIX)"
             )
         return [str(self.cfg.wine), str(rc), "-f", "-i", winpath(src)], env
 

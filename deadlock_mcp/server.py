@@ -4,18 +4,21 @@ from __future__ import annotations
 
 import asyncio
 import functools
+import hashlib
 import json
 import os
 import re
 import secrets
+import shutil
 import time
+from pathlib import Path
 
 from mcp.server.mcpserver import Image, MCPServer
 
-from . import __version__, game, watchdog
+from . import __version__, game, toolchain, watchdog
 from .assets import Assets
 from .bridge import HOSTS, Mailbox, analyze_user_code, bridge_script, bridge_version, render_bridge_js
-from .config import PROJECT_ROOT, Config
+from .config import Config
 from .consolelog import ConsoleLog
 from .css import css_diff_rules, css_to_rules, parse_selector
 from .errors import AssetError, DeadlockError
@@ -26,7 +29,7 @@ from .vpk import write_vpk
 INSTRUCTIONS = """\
 Live-edit Deadlock's Panorama UI (XML / CSS / JS) while the game runs.
 
-Setup once: bridge_install (needs CSDK 13), then launch_game. The in-game bridge picks up requests
+Setup once: setup (installs the toolchain; call again until it reports done), bridge_install, then launch_game. The in-game bridge picks up requests
 the server writes as files and answers through console.log, so no network console is needed.
 
 Typical loop: status → panel_tree / panel_find to locate panels → ui_source to read the game's
@@ -182,11 +185,20 @@ async def status() -> str:
             warnings.append("the dev addon is still mounted but the game is not running (crash or reboot?): a normal "
                             "Steam launch would load the bridge into regular play; run addons_mount(False)")
     info["csdk_resourcecompiler"] = (str(cfg.resourcecompiler) if cfg.resourcecompiler and cfg.resourcecompiler.is_file()
-                                     else "missing")
-    info["s2v_cli"] = str(cfg.s2v_cli) if cfg.s2v_cli and cfg.s2v_cli.is_file() else "missing"
+                                     else "missing (run setup)")
+    info["s2v_cli"] = str(cfg.s2v_cli) if cfg.s2v_cli and cfg.s2v_cli.is_file() else "missing (run setup)"
+    if missing := toolchain.missing_tools(toolchain.package_manager()):
+        info["missing_system_tools"] = missing
     if warnings:
         info["warnings"] = warnings
     return _json(info)
+
+
+@tool
+async def setup() -> str:
+    """Install the toolchain: Source 2 Viewer CLI, CSDK 13 and the compiler's Wine prefix. Downloads run in the
+    background, so call again to see progress; a step it can't do itself says what the user has to do."""
+    return _json(await toolchain.setup(cfg))
 
 
 @tool
@@ -598,27 +610,54 @@ async def remove_override(path: str) -> str:
     return f"removed {rel}; restart the game to apply" if removed else _err(f"{rel} is not in the addon")
 
 
+def _install_mod(vpk: Path) -> Path:
+    """Copy an exported VPK into game/citadel/addons/ as the next free pakNN_dir.vpk. Re-installing the same mod
+    replaces its earlier copy, but only while that file is still the one we wrote (a mod manager may have reused
+    the slot)."""
+    if not cfg.citadel_dir:
+        raise DeadlockError("Deadlock dir not found; set DEADLOCK_DIR")
+    addons = cfg.citadel_dir / "addons"
+    record = vpk.with_name("installed_as")
+    dest = None
+    if record.is_file():
+        slot, _, digest = record.read_text().partition(" ")
+        prev = addons / slot
+        if prev.is_file() and hashlib.sha256(prev.read_bytes()).hexdigest() == digest.strip():
+            dest = prev
+    if dest is None:
+        taken = {p.name for p in addons.glob("pak*_dir.vpk")} if addons.is_dir() else set()
+        slot = next((f"pak{n:02d}_dir.vpk" for n in range(1, 100) if f"pak{n:02d}_dir.vpk" not in taken), None)
+        if not slot:
+            raise DeadlockError(f"{addons} has no free pakNN_dir.vpk name (01-99)")
+        dest = addons / slot
+    addons.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(vpk, dest)
+    record.write_text(f"{dest.name} {hashlib.sha256(dest.read_bytes()).hexdigest()}")
+    return dest
+
+
 @tool
-async def export_mod(name: str, include: str = "") -> str:
-    """Export compiled overrides as a standalone mod VPK (no bridge files) at mods/<name>/pak01_dir.vpk.
+async def export_mod(name: str, include: str = "", install: bool = False) -> str:
+    """Export compiled overrides as a standalone mod VPK (no bridge files) at <data dir>/mods/<name>/pak01_dir.vpk.
 
     include: regex selecting which addon files to export (default: every non-bridge override; see
-    list_overrides). Install by copying the VPK into game/citadel/addons/ as pakNN_dir.vpk (with
-    `Game citadel/addons` in gameinfo.gi, as Deadlock mod managers set up).
+    list_overrides). install=True also copies it into game/citadel/addons/ as the next free pakNN_dir.vpk
+    (re-installing the same name replaces its earlier copy); the game loads it on its next start.
     """
     rx = re.compile(include) if include else None
     files = {rel: p for rel, p in assets.addon_files().items()
              if not _bridge_file(rel) and (not rx or rx.search(rel))}
     if not files:
         return _err("nothing to export (see list_overrides)")
-    out = PROJECT_ROOT / "mods" / re.sub(r"[^\w.-]", "_", name) / "pak01_dir.vpk"
+    out = cfg.mods_dir / re.sub(r"[^\w.-]", "_", name) / "pak01_dir.vpk"
 
-    def pack() -> None:
+    def pack() -> Path | None:
         out.parent.mkdir(parents=True, exist_ok=True)
         write_vpk(out, {rel: p.read_bytes() for rel, p in files.items()})
+        return _install_mod(out) if install else None
 
-    await asyncio.to_thread(pack)
-    return _json({"vpk": str(out), "files": sorted(files)})
+    installed = await asyncio.to_thread(pack)
+    return _json({"vpk": str(out), "files": sorted(files), **({"installed": str(installed)} if installed else {})})
 
 
 @tool

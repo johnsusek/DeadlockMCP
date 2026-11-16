@@ -7,16 +7,24 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEADLOCK_APPID = 1422450
 
 
+def data_home() -> Path:
+    """Where setup installs the toolchain and export_mod writes mods (env DEADLOCK_MCP_DATA)."""
+    env = os.environ.get("DEADLOCK_MCP_DATA")
+    if env:
+        return Path(env).expanduser()
+    return Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share").expanduser() / "deadlock-mcp"
+
+
 def _steam_roots() -> list[Path]:
-    """Where the Steam client itself may be installed (native, legacy symlink, Flatpak)."""
+    """Where the Steam client itself may be installed (native, legacy symlink, Flatpak, Snap)."""
     return [
         Path.home() / ".local/share/Steam",
         Path.home() / ".steam/steam",
         Path.home() / ".var/app/com.valvesoftware.Steam/.local/share/Steam",
+        Path.home() / "snap/steam/common/.local/share/Steam",
     ]
 
 
@@ -69,18 +77,19 @@ def _env_path(name: str, default: Path | None) -> Path | None:
 @dataclass
 class Config:
     deadlock_dir: Path | None = field(default_factory=find_deadlock_dir)
+    data_dir: Path = field(default_factory=data_home)
     s2v_cli: Path | None = field(
-        default_factory=lambda: _env_path("S2V_CLI", PROJECT_ROOT / "tools/s2v/Source2Viewer-CLI")
+        default_factory=lambda: _env_path("S2V_CLI", data_home() / "tools/s2v/Source2Viewer-CLI")
     )
     csdk_dir: Path | None = field(
-        default_factory=lambda: _env_path("CSDK_DIR", PROJECT_ROOT / "tools/Reduced_CSDK_13")
+        default_factory=lambda: _env_path("CSDK_DIR", data_home() / "tools/Reduced_CSDK_13")
     )
     # Optional command template overriding how resourcecompiler is run. Placeholders: {rc} {src_win}.
-    # Default: Proton's wine binary directly (fast, keeps stdout), using the umu prefix.
+    # Default: Proton's wine binary directly (fast, keeps stdout), in the prefix setup creates.
     rc_cmd: str | None = field(default_factory=lambda: os.environ.get("DEADLOCK_RC_CMD") or None)
     wine: Path | None = field(default_factory=lambda: _env_path("DEADLOCK_WINE", find_proton_wine()))
     wineprefix: Path = field(
-        default_factory=lambda: _env_path("WINEPREFIX", Path.home() / "Games/umu/umu-default/pfx")  # type: ignore[arg-type]
+        default_factory=lambda: _env_path("WINEPREFIX", data_home() / "wine")  # type: ignore[arg-type]
     )
     # Search path (relative to game/) mounted ahead of `citadel` in gameinfo.gi; compiled files go here.
     mount_path: str = field(default_factory=lambda: os.environ.get("DEADLOCK_MOUNT", "citadel/mcp_addons"))
@@ -104,6 +113,9 @@ class Config:
                 self.csdk_game_dir = self.csdk_dir / "game/citadel_addons" / self.addon_name
 
     # --- derived paths -------------------------------------------------
+    @property
+    def mods_dir(self) -> Path: return self.data_dir / "mods"
+
     @property
     def citadel_dir(self) -> Path | None:
         return self.deadlock_dir / "game/citadel" if self.deadlock_dir else None

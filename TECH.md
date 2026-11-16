@@ -2,7 +2,9 @@
 
 ## Setup
 
-Setup steps and client config: [README.md](README.md#getting-started). For development, install with `.[dev]` for the test dependencies. [`CLAUDE.md`](CLAUDE.md) has the same steps written for an agent to run. The included `.mcp.json` registers the server for clients that read project-level MCP config.
+Client config: [README.md](README.md#getting-started). For development, `python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'`; the included `.mcp.json` runs that checkout for clients that read project-level MCP config.
+
+`setup` installs the toolchain into the data dir, running the long steps (Source 2 Viewer download, CSDK download with `gdown` and extraction with `7z`, `wineboot --init` with Proton's wine) as background tasks, so each call returns at once with each step's state. If the Google Drive download fails it looks for a `*CSDK*13*.7z` in `~/Downloads` instead.
 
 On first use, `bridge_install` decompiles the three UI host layouts, injects the bridge, and compiles them into the dev addon. `launch_game` mounts the addon for each session.
 
@@ -11,7 +13,8 @@ On first use, `bridge_install` decompiles the three UI host layouts, injects the
 | tool | what it does |
 |---|---|
 | `status` | game, addon and bridge state; pings each loaded UI at once; `warnings` says what to fix (stale bridge after a game or tool update, addon left mounted after a crash) |
-| `launch_game` / `quit_game` | runs `deadlock.exe` directly via `umu-run` in Steam's prefix (no launch-options prompt, no shader pre-cache), adding `-console -condebug -dev -novid`; `map="new_player_basics"` boots into the sandbox with the full match HUD; refuses to launch if the dev addon can't be mounted |
+| `setup` | installs the toolchain (see above); lists missing system tools with the install command for the distro (apt, dnf, pacman, zypper, rpm-ostree) |
+| `launch_game` / `quit_game` | runs `deadlock.exe` directly via `umu-run` in Steam's prefix (no launch-options prompt, no shader pre-cache), adding `-console -condebug -dev -novid`; `via_steam=True` uses `steam -applaunch` (native, Snap or Flatpak Steam) instead; `map="new_player_basics"` boots into the sandbox with the full match HUD; refuses to launch if the dev addon can't be mounted |
 | `console_log` | tail of `console.log` (Panorama errors, `$.Msg` output) |
 | `screenshot` | captures the game window as an image, with optional `WxH+X+Y` crop; `full_screen=True` captures the whole screen. A minimised game window is an error, never a picture of the desktop |
 | `ui_files` / `ui_source` | list the game's Panorama files / decompile any of them |
@@ -22,7 +25,7 @@ On first use, `bridge_install` decompiles the three UI host layouts, injects the
 | `layout_live_edit` / `layout_live_revert` | edit a game stylesheet (any of the layout's includes, subdirectories too); only the changed declarations are applied live, as sheet `live:<path under styles/>` |
 | `panel_delete` | remove a panel (not the UI root or the bridge) |
 | `compile_source` / `list_overrides` / `remove_override` | permanent overrides of game files, packed into the dev addon VPK (restart needed); the three bridge host layouts are refused |
-| `export_mod` | packs your overrides, without the bridge, into a standalone `mods/<name>/pak01_dir.vpk` for `game/citadel/addons/` |
+| `export_mod` | packs your overrides, without the bridge, into a standalone `<data dir>/mods/<name>/pak01_dir.vpk`; `install=True` copies it into `game/citadel/addons/` as the next free `pakNN_dir.vpk`, and re-installing the same name replaces that copy while it is still the file we wrote |
 | `bridge_install` / `bridge_uninstall` / `addons_mount` | setup and teardown; `bridge_install` records the bridge version and game build in `mcp_addons/mcp_bridge.json` so `status` can tell when to re-run it |
 
 Pass `ui='hud' | 'dashboard' | 'overlay'` to pick a panel tree. The default `auto` uses the first one that's ready, in that order.
@@ -34,12 +37,13 @@ Pass `ui='hud' | 'dashboard' | 'overlay'` to pick a panel tree. The default `aut
 | variable | default |
 |---|---|
 | `DEADLOCK_DIR` | auto-detected from Steam libraries |
-| `CSDK_DIR` | `tools/Reduced_CSDK_13` |
-| `S2V_CLI` | `tools/s2v/Source2Viewer-CLI` |
+| `DEADLOCK_MCP_DATA` | `$XDG_DATA_HOME/deadlock-mcp` (`~/.local/share/deadlock-mcp`): toolchain, Wine prefix, exported mods |
+| `CSDK_DIR` | `<data dir>/tools/Reduced_CSDK_13` |
+| `S2V_CLI` | `<data dir>/tools/s2v/Source2Viewer-CLI` |
 | `DEADLOCK_PROTON` | Steam's *Proton - Experimental* (used to run the game) |
-| `DEADLOCK_WINE` / `WINEPREFIX` | newest GE-Proton (else Proton) wine / `~/Games/umu/umu-default/pfx` (used for the compiler) |
+| `DEADLOCK_WINE` / `WINEPREFIX` | newest GE-Proton (else Proton) wine / `<data dir>/wine` (used for the compiler) |
 | `CSDK_CONTENT` / `CSDK_GAME` | `<CSDK_DIR>/{content,game}/citadel_addons/mcp_bridge` (where sources are written / compiled files land) |
-| `STEAM_COMPAT_CLIENT_INSTALL_PATH` | the Steam client install (`~/.local/share/Steam`, `~/.steam/steam` or the Flatpak's); the game's Proton prefix is taken from the library Deadlock is in |
+| `STEAM_COMPAT_CLIENT_INSTALL_PATH` | the Steam client install (`~/.local/share/Steam`, `~/.steam/steam`, the Flatpak's or the Snap's); the game's Proton prefix is taken from the library Deadlock is in |
 | `DEADLOCK_RC_CMD` | custom compiler command template (`{rc}`, `{src_win}`) |
 | `DEADLOCK_MOUNT` | `citadel/mcp_addons` (the dev addon) |
 | `DEADLOCK_EXTRA_MOUNTS` | `citadel/addons` (comma-separated; mounted after the dev addon so installed mods load) |

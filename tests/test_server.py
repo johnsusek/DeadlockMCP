@@ -26,7 +26,7 @@ def install(tmp_path, monkeypatch):
     citadel.mkdir(parents=True)
     (citadel / "gameinfo.gi").write_text(GAMEINFO)
     cfg = Config(deadlock_dir=tmp_path / "Deadlock", cache_dir=tmp_path / "cache", csdk_dir=tmp_path / "csdk",
-                 extra_mounts=["citadel/addons"])
+                 data_dir=tmp_path / "data", extra_mounts=["citadel/addons"])
     log = ConsoleLog(citadel / "console.log")
     monkeypatch.setattr(log, "start", lambda *a, **k: None)  # no background poller outliving the test loop
     mb = Mailbox(cfg.addons_dir, log, game_running=lambda: game.game_running())
@@ -61,7 +61,7 @@ async def test_tool_signatures_and_schema_survive_the_decorator():
     assert list(inspect.signature(server.launch_game).parameters) == ["map", "extra_args", "via_steam"]
     assert "Launch Deadlock" in server.launch_game.__doc__
     tools = {t.name: t for t in await server.mcp.list_tools()}
-    assert len(tools) == 23
+    assert len(tools) == 24
     props = tools["launch_game"].input_schema["properties"]
     assert props["extra_args"]["default"] == "" and props["via_steam"]["default"] is False and "map" in props
     assert tools["screenshot"].input_schema["properties"]["max_width"]["default"] == 1600
@@ -121,6 +121,19 @@ def test_umu_command_uses_compat_data_and_steam_root(tmp_path, monkeypatch):
     assert cmd[-4:] == ["+map", "dl_hideout", "-foo", "a b"] and cwd == cfg.deadlock_dir / "game/bin/win64"
     with pytest.raises(DeadlockError, match="extra_args"):
         game.launch_args(None, "'unbalanced")
+
+
+def test_steam_command_native_snap_flatpak(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    found = {}
+    monkeypatch.setattr(game.shutil, "which", lambda name, path=None: found.get(name))
+    with pytest.raises(DeadlockError, match="Steam not found"):
+        game.steam_command([])
+    found["flatpak"] = "/usr/bin/flatpak"
+    (tmp_path / ".var/app/com.valvesoftware.Steam").mkdir(parents=True)
+    assert game.steam_command(["-x"])[0] == ["flatpak", "run", "com.valvesoftware.Steam", "-applaunch", "1422450", "-x"]
+    found["steam"] = "/snap/bin/steam"
+    assert game.steam_command([])[0][0] == "/snap/bin/steam"
 
 
 def test_spawn_closes_log_in_parent(tmp_path):
@@ -398,3 +411,27 @@ async def test_screenshot_never_swaps_the_game_window_for_the_desktop(monkeypatc
     assert not any("spectacle" in c or "grim" in c for c in calls)  # the desktop was never captured
     fake("94371843\n", "94371843\n")
     assert (await server.screenshot()).data == b"WINDOW"
+
+
+# ---------------------------------------------------------------- export_mod
+
+
+async def test_export_mod_installs_into_next_free_slot_and_replaces_its_own(install, monkeypatch):
+    src = install.cache_dir / "hud.vcss_c"
+    src.parent.mkdir(parents=True)
+    src.write_bytes(b"v1")
+    monkeypatch.setattr(server.assets, "addon_files", lambda: {"panorama/styles/hud.vcss_c": src})
+    addons = install.citadel_dir / "addons"
+    addons.mkdir()
+    (addons / "pak01_dir.vpk").write_bytes(b"someone else's mod")
+    info = json.loads(await server.export_mod("my hud", install=True))
+    assert info["vpk"] == str(install.data_dir / "mods/my_hud/pak01_dir.vpk")
+    assert info["installed"] == str(addons / "pak02_dir.vpk")
+    src.write_bytes(b"v2")
+    info = json.loads(await server.export_mod("my hud", install=True))
+    assert info["installed"] == str(addons / "pak02_dir.vpk")  # same slot, updated
+    assert (addons / "pak02_dir.vpk").read_bytes() == (install.data_dir / "mods/my_hud/pak01_dir.vpk").read_bytes()
+    (addons / "pak02_dir.vpk").write_bytes(b"a mod manager reused the slot")
+    info = json.loads(await server.export_mod("my hud", install=True))
+    assert info["installed"] == str(addons / "pak03_dir.vpk")  # never overwrites a file we didn't write
+    assert "installed" not in json.loads(await server.export_mod("other"))
