@@ -1,5 +1,5 @@
 # Starts the server for registry introspection only; real use needs the game on a Linux host (see README).
-FROM python:3.12-slim
+FROM python:3.15-slim
 WORKDIR /app
 COPY pyproject.toml README.md LICENSE ./
 COPY deadlock_mcp deadlock_mcp
