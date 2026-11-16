@@ -12,7 +12,7 @@ import time
 
 from mcp.server.mcpserver import Image, MCPServer
 
-from . import game, watchdog
+from . import __version__, game, watchdog
 from .assets import Assets
 from .bridge import HOSTS, Mailbox, analyze_user_code, bridge_script, bridge_version, render_bridge_js
 from .config import PROJECT_ROOT, Config
@@ -47,7 +47,7 @@ log = ConsoleLog(cfg.citadel_dir / "console.log" if cfg.citadel_dir else None)
 mailbox = Mailbox(cfg.addons_dir, log, game_running=lambda: game.game_running())
 assets = Assets(cfg)
 
-mcp = MCPServer("deadlock-panorama", instructions=INSTRUCTIONS)
+mcp = MCPServer("deadlock-panorama", instructions=INSTRUCTIONS, version=__version__)
 
 # The three bridge host layouts (compiled names). Overriding one with compile_source would drop that UI's bridge.
 HOST_FILES = {host + ".vxml_c" for _, host in HOSTS.values()}
